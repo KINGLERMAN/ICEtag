@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ICEtag</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-full bg-slate-950 text-slate-100">
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="/" class="text-xl font-semibold tracking-tight">ICEtag</a>
+      <nav class="flex gap-1">
+        <a class="px-3 py-2 rounded-lg hover:bg-slate-800" href="/sightings">View Sightings</a>
+        <a class="px-3 py-2 rounded-lg hover:bg-slate-800" href="/friendly">Friendly SSIDs</a>
+        <a class="px-3 py-2 rounded-lg hover:bg-slate-800" href="/uploads">Upload Reports</a>
+        <a class="px-3 py-2 rounded-lg hover:bg-slate-800" href="/correlate">Correlate</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 pb-10 text-xs text-slate-400">
+    ICEtag — local-first. Keep your data safe. v{{ app_version|default('0.1') }}
+  </footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Virtual env
+.venv/
+env/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App artifacts
+ice.db
+*.sqlite
+*.sqlite3
+logs/
+output/
+uploads/
+instance/
+
+# Node or other future frontends (if any)
+node_modules/
+dist/

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-2xl font-semibold mb-4">Correlation (same SSID/BSSID seen multiple times)</h2>
+<div class="rounded-2xl ring-1 ring-slate-800 overflow-hidden">
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-900/70">
+      <tr class="text-left">
+        <th class="p-3">SSID</th>
+        <th class="p-3">BSSID (hash)</th>
+        <th class="p-3">Count</th>
+        <th class="p-3">First seen</th>
+        <th class="p-3">Last seen</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for g in groups %}
+      <tr class="hover:bg-slate-900/40">
+        <td class="p-3">{{ g["ssid"] }}</td>
+        <td class="p-3 text-slate-400">{{ g["bssid_hash"] }}</td>
+        <td class="p-3">{{ g["n"] }}</td>
+        <td class="p-3 text-slate-400">{{ g["first_seen"] }}</td>
+        <td class="p-3 text-slate-400">{{ g["last_seen"] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

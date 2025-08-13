@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-2xl font-semibold mb-4">Friendly (whitelist)</h2>
+<form id="f" class="flex gap-2 mb-4">
+  <input name="ssid" placeholder="SSID" class="px-3 py-2 rounded-xl bg-slate-900 ring-1 ring-slate-800 w-80" />
+  <button class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500">Add</button>
+</form>
+<ul class="space-y-1 text-slate-300">
+  {% for r in rows %}
+  <li class="px-3 py-2 rounded-lg bg-slate-900/60 ring-1 ring-slate-800">{{ r['ssid'] }}</li>
+  {% endfor %}
+</ul>
+<script>
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  await fetch("/friendly", {method:"POST", body: fd});
+  location.reload();
+});
+</script>
+{% endblock %}

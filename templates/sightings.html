@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="text-2xl font-semibold mb-4">Sightings (latest first)</h2>
+<div class="rounded-2xl ring-1 ring-slate-800 overflow-hidden">
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-900/70">
+      <tr class="text-left">
+        <th class="p-3">SSID</th>
+        <th class="p-3">BSSID (hash)</th>
+        <th class="p-3">Ch</th>
+        <th class="p-3">RSSI</th>
+        <th class="p-3">Auth</th>
+        <th class="p-3">Enc</th>
+        <th class="p-3">Radio</th>
+        <th class="p-3">Seen</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800">
+      {% for r in rows %}
+      <tr class="hover:bg-slate-900/40">
+        <td class="p-3">{{ r['ssid'] }}</td>
+        <td class="p-3 text-slate-400">{{ r['bssid_hash'] }}</td>
+        <td class="p-3">{{ r['channel'] }}</td>
+        <td class="p-3">{{ r['rssi'] }}</td>
+        <td class="p-3">{{ r['auth'] }}</td>
+        <td class="p-3">{{ r['encryption'] }}</td>
+        <td class="p-3">{{ r['radio'] }}</td>
+        <td class="p-3 text-slate-400">{{ r['last_seen'] }} ({{ r['seen_count'] }}×)</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="mt-4">
+  <a href="/export.csv" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Export CSV</a>
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-6">
+  <section class="bg-slate-900/60 rounded-2xl p-6 ring-1 ring-slate-800">
+    <h2 class="text-2xl font-semibold mb-4">Quick Actions</h2>
+    <p class="text-slate-300 mb-4">
+      Run a local Wi‑Fi scan and save to the database, or upload reports from the field.
+    </p>
+    <div class="flex flex-wrap gap-3">
+      <button id="btnScan" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[.99]">▶ Go — Scan SSIDs</button>
+      <a href="/sightings" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">View Sightings</a>
+      <a href="/friendly" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Friendly SSIDs</a>
+      <a href="/uploads" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Upload Reports</a>
+      <a href="/correlate" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Correlate</a>
+    </div>
+
+    <div id="scanStatus" class="mt-6 text-sm text-slate-400">Ready.</div>
+    <div id="scanSummary" class="mt-2 text-sm text-slate-300"></div>
+
+    <pre id="jsonOut" class="mt-4 p-4 bg-slate-950/70 rounded-xl ring-1 ring-slate-800 overflow-auto min-h-[120px] text-emerald-300 text-sm">
+{ "count": 0, "items": [] }
+    </pre>
+  </section>
+
+  <section class="bg-slate-900/60 rounded-2xl p-6 ring-1 ring-slate-800">
+    <h2 class="text-2xl font-semibold mb-4">How it works</h2>
+    <ul class="list-disc pl-6 space-y-2 text-slate-300">
+      <li><span class="font-semibold">Go — Scan</span> detects nearby SSIDs/BSSIDs using your OS tools.</li>
+      <li>Data is stored locally in <code class="text-slate-200">ice.db</code> with <span class="font-semibold">hashed</span> BSSIDs by default.</li>
+      <li>Whitelist home/office networks in <em>Friendly SSIDs</em> so they’re excluded from alerts.</li>
+    </ul>
+
+    <div id="diagBox" class="hidden mt-6 rounded-xl bg-slate-950/60 p-4 ring-1 ring-slate-800">
+      <div class="font-semibold mb-2">Scanner diagnostics</div>
+      <pre id="diagPre" class="text-xs text-slate-300 whitespace-pre-wrap"></pre>
+    </div>
+  </section>
+</div>
+
+<script>
+const btn = document.getElementById("btnScan");
+const out = document.getElementById("jsonOut");
+const stat = document.getElementById("scanStatus");
+const diagBox = document.getElementById("diagBox");
+const diagPre = document.getElementById("diagPre");
+const sum = document.getElementById("scanSummary");
+
+btn.addEventListener("click", async () => {
+  stat.textContent = "Scanning…";
+  btn.disabled = true;
+  try {
+    const r = await fetch("/scan", {method:"POST"});
+    const j = await r.json();
+    out.textContent = JSON.stringify({count: j.count, items: j.items.slice(0, 50)}, null, 2);
+    stat.textContent = `Found ${j.count} item(s).`;
+    if (j.diag) {
+      diagBox.classList.remove("hidden");
+      diagPre.textContent = JSON.stringify(j.diag, null, 2);
+    }
+    const top5 = (j.items || []).slice(0, 5).map(x =>
+      `${x.ssid || '(hidden)'} — ch ${x.channel || '?'} • ${x.band || ''} • ${x.rssi ?? ''} dBm`
+    );
+    sum.textContent = top5.length ? `Top results: ${top5.join(" | ")}` : '';
+  } catch (e) {
+    stat.textContent = "Scan failed.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}
