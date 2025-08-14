@@ -1,71 +1,78 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="grid md:grid-cols-2 gap-6">
-  <section class="bg-slate-900/60 rounded-2xl p-6 ring-1 ring-slate-800">
-    <h2 class="text-2xl font-semibold mb-4">Quick Actions</h2>
-    <p class="text-slate-300 mb-4">
-      Run a local Wi‑Fi scan and save to the database, or upload reports from the field.
-    </p>
-    <div class="flex flex-wrap gap-3">
-      <button id="btnScan" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[.99]">▶ Go — Scan SSIDs</button>
-      <a href="/sightings" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">View Sightings</a>
-      <a href="/friendly" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Friendly SSIDs</a>
-      <a href="/uploads" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Upload Reports</a>
-      <a href="/correlate" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700">Correlate</a>
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ICEtag — Nearby Digital Footprints</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:#0c0f14; color:#e6edf3; margin:0; }
+    .wrap { display:grid; grid-template-columns: 360px 1fr; gap:20px; padding:20px; }
+    .card { background:#111826; border:1px solid #1f2937; border-radius:16px; padding:18px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+    h1 { font-size:22px; margin:0 0 6px; }
+    .btn { background:#10b981; border:none; color:#001; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer; }
+    .muted { color:#9aa6b2; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background:#0b1220; border:1px solid #1f2937; padding:12px; border-radius:12px; overflow:auto; max-height: 50vh; }
+    .kv { display:flex; align-items:center; gap:8px; margin:6px 0; }
+    .pill { background:#0b7; color:#001; padding:2px 8px; border-radius:999px; font-weight:700; }
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+    .list { margin:8px 0 0; padding:0; list-style:none; }
+    .list li { background:#0b1220; border:1px solid #1f2937; border-radius:10px; padding:10px; }
+    code { color:#b3d4ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Quick Actions</h1>
+      <p class="muted">Run a local Wi‑Fi + LAN scan and save to the database, or upload reports from the field.</p>
+      <button id="go" class="btn">▶ Go — Scan</button>
+      <div id="summary" class="muted" style="margin-top:8px;"></div>
+      <h3>Top Wi‑Fi</h3>
+      <div id="topwifi" class="muted">—</div>
+      <h3>Results</h3>
+      <pre id="raw">—</pre>
     </div>
-
-    <div id="scanStatus" class="mt-6 text-sm text-slate-400">Ready.</div>
-    <div id="scanSummary" class="mt-2 text-sm text-slate-300"></div>
-
-    <pre id="jsonOut" class="mt-4 p-4 bg-slate-950/70 rounded-xl ring-1 ring-slate-800 overflow-auto min-h-[120px] text-emerald-300 text-sm">
-{ "count": 0, "items": [] }
-    </pre>
-  </section>
-
-  <section class="bg-slate-900/60 rounded-2xl p-6 ring-1 ring-slate-800">
-    <h2 class="text-2xl font-semibold mb-4">How it works</h2>
-    <ul class="list-disc pl-6 space-y-2 text-slate-300">
-      <li><span class="font-semibold">Go — Scan</span> detects nearby SSIDs/BSSIDs using your OS tools.</li>
-      <li>Data is stored locally in <code class="text-slate-200">ice.db</code> with <span class="font-semibold">hashed</span> BSSIDs by default.</li>
-      <li>Whitelist home/office networks in <em>Friendly SSIDs</em> so they’re excluded from alerts.</li>
-    </ul>
-
-    <div id="diagBox" class="hidden mt-6 rounded-xl bg-slate-950/60 p-4 ring-1 ring-slate-800">
-      <div class="font-semibold mb-2">Scanner diagnostics</div>
-      <pre id="diagPre" class="text-xs text-slate-300 whitespace-pre-wrap"></pre>
+    <div class="card">
+      <h1>How it works</h1>
+      <p>Go — Scan detects nearby SSIDs/BSSIDs using your OS tools and discovers devices on your LAN adaptively.</p>
+      <p class="muted">Data is stored locally in <code>data/ice.db</code>. BSSIDs are hashed by default.</p>
+      <h3>Scanner diagnostics</h3>
+      <pre id="diag">—</pre>
     </div>
-  </section>
-</div>
-
-<script>
-const btn = document.getElementById("btnScan");
-const out = document.getElementById("jsonOut");
-const stat = document.getElementById("scanStatus");
-const diagBox = document.getElementById("diagBox");
-const diagPre = document.getElementById("diagPre");
-const sum = document.getElementById("scanSummary");
-
-btn.addEventListener("click", async () => {
-  stat.textContent = "Scanning…";
-  btn.disabled = true;
-  try {
-    const r = await fetch("/scan", {method:"POST"});
-    const j = await r.json();
-    out.textContent = JSON.stringify({count: j.count, items: j.items.slice(0, 50)}, null, 2);
-    stat.textContent = `Found ${j.count} item(s).`;
-    if (j.diag) {
-      diagBox.classList.remove("hidden");
-      diagPre.textContent = JSON.stringify(j.diag, null, 2);
+  </div>
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    function fmt(rec){
+      return JSON.stringify(rec, null, 2);
     }
-    const top5 = (j.items || []).slice(0, 5).map(x =>
-      `${x.ssid || '(hidden)'} — ch ${x.channel || '?'} • ${x.band || ''} • ${x.rssi ?? ''} dBm`
-    );
-    sum.textContent = top5.length ? `Top results: ${top5.join(" | ")}` : '';
-  } catch (e) {
-    stat.textContent = "Scan failed.";
-  } finally {
-    btn.disabled = false;
-  }
-});
-</script>
-{% endblock %}
+    async function doScan(){
+      $("#go").disabled = true; $("#go").textContent = "Scanning…";
+      try{
+        const r = await fetch("/api/scan", {method:"POST"});
+        const j = await r.json();
+        render(j);
+      }catch(e){
+        alert("Scan failed: "+e);
+      }finally{
+        $("#go").disabled = false; $("#go").textContent = "▶ Go — Scan";
+      }
+    }
+    function render(j){
+      $("#raw").textContent = fmt({wifi_count:j.wifi.count, lan_count:j.lan.count, wifi_items:j.wifi.items, lan_items:j.lan.items});
+      $("#diag").textContent = fmt(j.diagnostics);
+      const top = (j.wifi.items||[])[0];
+      if(top){
+        $("#topwifi").textContent = `${top.ssid || "(hidden)"} — ch ${top.channel||"?"} • ${(top.band||"wifi")} • ${top.rssi_pct?top.rssi_pct+"%":"?"}`;
+      }else{
+        $("#topwifi").textContent = "No Wi‑Fi neighbors reported by OS";
+      }
+      $("#summary").textContent = `Found ${j.wifi.count} Wi‑Fi network(s) and ${j.lan.count} LAN device(s).`;
+    }
+    $("#go").addEventListener("click", doScan);
+    // hydrate with latest if available
+    fetch("/api/latest").then(r=>r.json()).then(j=>{ if(!j.error){ render(j); }});
+  </script>
+</body>
+</html>

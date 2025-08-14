@@ -1,187 +1,58 @@
-import os, json, hashlib, csv, threading, webbrowser
-from flask import Flask, request, render_template, jsonify, Response
-from dotenv import load_dotenv
-import db
+
+import os
+import threading
+import webbrowser
+from datetime import datetime, timezone
+from flask import Flask, jsonify, render_template, request
+import db as dbm
 import scanner
 
-# --- Load env + config ---
-load_dotenv()
-PORT = int(os.getenv("PORT", "5005"))
-PEPPER = os.getenv("PEPPER", "change-this")
-STORE_RAW = os.getenv("STORE_RAW_BSSID", "false").lower() == "true"
-APP_VERSION = os.getenv("APP_VERSION", "0.2.0")
-
 app = Flask(__name__)
+app.config["JSON_SORT_KEYS"] = False
 
-# Initialize DB at import time
-db.init_db()
+# Ensure DB is initialized at startup
+dbm.init_db()
 
-@app.teardown_appcontext
-def close_db(err):
-    db.close_conn()
+def _ts_utc():
+    return int(datetime.now(timezone.utc).timestamp())
 
-def bssid_hash(bssid: str) -> str | None:
-    if not bssid:
-        return None
-    raw = (bssid.strip().lower() + "|" + PEPPER).encode("utf-8")
-    import hashlib as _h
-    return _h.sha256(raw).hexdigest()
-
-# ----------------- Pages -----------------
-@app.get("/")
+@app.route("/")
 def home():
-    return render_template("index.html", app_version=APP_VERSION)
+    latest = dbm.get_latest_scan()
+    return render_template("index.html", latest=latest)
 
-@app.get("/sightings")
-def sightings_page():
-    rows = db.list_sightings(limit=500)
-    return render_template("sightings.html", rows=rows, app_version=APP_VERSION)
+@app.route("/api/scan", methods=["POST"])
+def api_scan():
+    # Wi‑Fi + LAN scan
+    wifi = scanner.scan_wifi()
+    lan = scanner.scan_lan()
+    diag = scanner.scan_diagnostics(wifi=wifi, lan=lan)
 
-@app.get("/friendly")
-def friendly_page():
-    return render_template("friendly.html", rows=db.list_friendly(), app_version=APP_VERSION)
-
-@app.post("/friendly")
-def friendly_add():
-    ssid = (request.form.get("ssid") or "").strip()
-    if ssid:
-        db.add_friendly(ssid)
-    return jsonify({"ok": True})
-
-@app.get("/correlate")
-def correlate_page():
-    groups = db.correlation_groups()
-    return render_template("correlate.html", groups=groups, app_version=APP_VERSION)
-
-@app.route("/uploads", methods=["GET", "POST"])
-def uploads_page():
-    if request.method == "POST":
-        file = request.files.get("file")
-        if not file:
-            return "No file", 400
-        name = file.filename
-        buf = file.read()
-        try:
-            count = 0
-            # JSON import (our native export)
-            if name.lower().endswith(".json"):
-                data = json.loads(buf.decode("utf-8"))
-                for r in data:
-                    db.add_sighting(
-                        ssid=r.get("ssid"),
-                        bssid_hash=r.get("bssid_hash"),
-                        channel=r.get("channel"),
-                        rssi=r.get("rssi"),
-                        vendor_oui=r.get("vendor_oui"),
-                        auth=r.get("auth"),
-                        encryption=r.get("encryption"),
-                        radio=r.get("radio"),
-                        beacon_interval=r.get("beacon_interval"),
-                        has_wps=r.get("has_wps"),
-                        scanner_platform=r.get("scanner_platform"),
-                        app_version=r.get("app_version"),
-                    )
-                    count += 1
-            # CSV import
-            elif name.lower().endswith(".csv"):
-                import io, csv
-                f = io.StringIO(buf.decode("utf-8"))
-                rdr = csv.DictReader(f)
-                for r in rdr:
-                    db.add_sighting(
-                        ssid=r.get("ssid"),
-                        bssid_hash=r.get("bssid_hash"),
-                        channel=int(r.get("channel") or 0),
-                        rssi=int(r.get("rssi") or 0),
-                        vendor_oui=r.get("vendor_oui"),
-                        auth=r.get("auth"),
-                        encryption=r.get("encryption"),
-                        radio=r.get("radio"),
-                        beacon_interval=int(r.get("beacon_interval") or 0),
-                        has_wps=(str(r.get("has_wps")).lower() in ("1","true","yes")),
-                        scanner_platform=r.get("scanner_platform"),
-                        app_version=r.get("app_version"),
-                    )
-                    count += 1
-            else:
-                return "Unsupported file type", 400
-            db.log_upload(name)
-            return jsonify({"ok": True, "imported": count})
-        except Exception as e:
-            return jsonify({"ok": False, "error": str(e)}), 400
-    return render_template("uploads.html", app_version=APP_VERSION)
-
-# ----------------- APIs -----------------
-@app.post("/scan")
-def scan_route():
-    results, diag = scanner.scan()  # results:list[dict], diag:dict
-    out = []
-    import platform
-    scanner_platform = platform.system()
-    for r in results:
-        h = bssid_hash(r.get("bssid"))
-        vendor_oui = r.get("vendor_oui") or r.get("bssid_oui")
-        db.add_sighting(
-            ssid=r.get("ssid"),
-            bssid_hash=h,
-            channel=r.get("channel"),
-            rssi=r.get("rssi"),
-            vendor_oui=vendor_oui,
-            auth=r.get("auth"),
-            encryption=r.get("encryption"),
-            radio=r.get("radio"),
-            beacon_interval=r.get("beacon_interval"),
-            has_wps=bool(r.get("has_wps")),
-            scanner_platform=scanner_platform,
-            app_version=APP_VERSION,
-        )
-        item = {
-            "ssid": r.get("ssid"),
-            "bssid": r.get("bssid") if STORE_RAW else None,
-            "bssid_hash": h,
-            "vendor_oui": vendor_oui,
-            "channel": r.get("channel"),
-            "band": r.get("band"),
-            "rssi": r.get("rssi"),
-            "rssi_pct": r.get("rssi_pct"),
-            "auth": r.get("auth"),
-            "encryption": r.get("encryption"),
-            "radio": r.get("radio"),
-            "beacon_interval": r.get("beacon_interval"),
-            "has_wps": r.get("has_wps"),
-            "scanner_platform": scanner_platform,
-        }
-        out.append(item)
-    payload = {
-        "count": len(out),
-        "items": out,
-        "diag": diag,
-        "app_version": APP_VERSION
+    rec = {
+        "ts_utc": _ts_utc(),
+        "wifi": wifi,
+        "lan": lan,
+        "diagnostics": diag,
     }
-    return jsonify(payload)
+    dbm.save_scan(rec)
+    return jsonify(rec)
 
-@app.get("/export.csv")
-def export_csv():
-    rows = db.list_sightings(limit=5000)
-    fieldnames = ["ssid","bssid_hash","channel","rssi","vendor_oui","auth","encryption",
-                  "radio","beacon_interval","has_wps","scanner_platform","app_version",
-                  "first_seen","last_seen","seen_count","rssi_min","rssi_max"]
-    def gen():
-        yield ",".join(fieldnames) + "\n"
-        for r in rows:
-            row = [str(r.get(k,"")) if r.get(k) is not None else "" for k in fieldnames]
-            yield ",".join(x.replace(",", ";") for x in row) + "\n"
-    return Response(gen(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=sightings_export.csv"})
+@app.route("/api/latest", methods=["GET"])
+def api_latest():
+    data = dbm.get_latest_scan()
+    return jsonify(data or {"error":"no scans yet"})
 
-# ----------------- Browser auto-open -----------------
-def _open_browser_later():
-    url = f"http://127.0.0.1:{PORT}/"
-    try:
-        webbrowser.open(url, new=1, autoraise=True)
-    except Exception:
-        pass
+def _open_browser_once(port: int):
+    def _open():
+        url = f"http://127.0.0.1:{port}"
+        try:
+            webbrowser.open_new(url)
+        except Exception:
+            pass
+    threading.Timer(1.2, _open).start()
 
 if __name__ == "__main__":
-    threading.Timer(0.8, _open_browser_later).start()
-    app.run(host="127.0.0.1", port=PORT, debug=True)
+    port = int(os.environ.get("PORT", "5005"))
+    # Auto-open default browser
+    _open_browser_once(port)
+    app.run(host="127.0.0.1", port=port, debug=False)
